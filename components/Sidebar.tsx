@@ -1,12 +1,13 @@
 "use client";
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { LayoutDashboard, CalendarDays, Users, Settings, MonitorPlay, FileText, AlertTriangle } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { LayoutDashboard, CalendarDays, Users, LogOut, MonitorPlay, FileText, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { AUTH_EMAIL_COOKIE, AUTH_NAME_COOKIE, AUTH_ROLE_COOKIE, isValidRole, ROLE_LABELS, ROLE_NAV_ACCESS } from '@/lib/auth';
 
 const navItems = [
-  { name: 'Portal Siswa/Umum', href: '/', icon: Users },
+  { name: 'Portal Siswa/Umum', href: '/portal', icon: Users },
   { name: 'Dashboard Manajemen', href: '/admin', icon: LayoutDashboard },
   { name: 'Dashboard Operator', href: '/operator', icon: CalendarDays },
   { name: 'Inventaris & Aset', href: '/admin/inventory', icon: MonitorPlay },
@@ -14,8 +15,52 @@ const navItems = [
   { name: 'Peringatan Sistem', href: '/admin/alerts', icon: AlertTriangle },
 ];
 
+function getCookieValue(cookieName: string) {
+  if (typeof document === 'undefined') {
+    return '';
+  }
+
+  const encodedName = `${cookieName}=`;
+  const cookie = document.cookie
+    .split(';')
+    .map((item) => item.trim())
+    .find((item) => item.startsWith(encodedName));
+
+  if (!cookie) {
+    return '';
+  }
+
+  return decodeURIComponent(cookie.substring(encodedName.length));
+}
+
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  const roleValue = getCookieValue(AUTH_ROLE_COOKIE);
+  const role = isValidRole(roleValue) ? roleValue : 'siswa';
+  const profileName = getCookieValue(AUTH_NAME_COOKIE) || (role === 'siswa' ? 'Siswa Uji Coba' : role === 'operator' ? 'Operator Lab' : 'Admin User');
+  const profileEmail = getCookieValue(AUTH_EMAIL_COOKIE) || (role === 'siswa' ? 'siswa@smktelkom-mlg.sch.id' : role === 'operator' ? 'operator@smktelkom-mlg.sch.id' : 'admin@smktelkom-mlg.sch.id');
+
+  const roleLinks = ROLE_NAV_ACCESS[role] || ROLE_NAV_ACCESS.siswa;
+
+  const visibleNavItems = navItems.filter((item) => roleLinks.includes(item.href));
+
+  const initials = profileName
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((name) => name.charAt(0).toUpperCase())
+    .join('') || 'US';
+
+  const handleLogout = () => {
+    document.cookie = `${AUTH_ROLE_COOKIE}=; path=/; max-age=0; samesite=lax`;
+    document.cookie = `${AUTH_NAME_COOKIE}=; path=/; max-age=0; samesite=lax`;
+    document.cookie = `${AUTH_EMAIL_COOKIE}=; path=/; max-age=0; samesite=lax`;
+
+    router.push('/');
+    router.refresh();
+  };
 
   return (
     <div className="flex h-full w-64 flex-col border-r bg-slate-900 text-slate-300">
@@ -24,7 +69,7 @@ export function Sidebar() {
       </div>
       <div className="flex-1 overflow-y-auto py-4">
         <nav className="space-y-1 px-3">
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const isActive = pathname === item.href;
             return (
               <Link
@@ -45,15 +90,23 @@ export function Sidebar() {
         </nav>
       </div>
       <div className="p-4 border-t border-slate-800">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 mb-3">
           <div className="h-8 w-8 rounded-full bg-slate-700 flex items-center justify-center text-sm font-medium text-white">
-            AD
+            {initials}
           </div>
-          <div className="flex flex-col">
-            <span className="text-sm font-medium text-white">Admin User</span>
-            <span className="text-xs text-slate-400">admin@smktelkom-mlg.sch.id</span>
+          <div className="flex flex-col min-w-0">
+            <span className="text-sm font-medium text-white truncate">{profileName}</span>
+            <span className="text-xs text-slate-400 truncate">{profileEmail}</span>
+            <span className="text-[11px] text-red-300 mt-0.5">Role: {ROLE_LABELS[role]}</span>
           </div>
         </div>
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center justify-center gap-2 rounded-md border border-slate-700 px-3 py-2 text-sm font-medium text-slate-100 hover:bg-slate-800 transition-colors"
+        >
+          <LogOut className="h-4 w-4" />
+          Logout
+        </button>
       </div>
     </div>
   );
